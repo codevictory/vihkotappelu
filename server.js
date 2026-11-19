@@ -18,7 +18,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { getRoom, resetRoom } = require('./src/game');
+const { getRoom, resetRoom, httpError, I18N } = require('./src/game');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -39,13 +39,18 @@ function sendJson(res, status, obj) {
   res.end(body);
 }
 
+/* Language for this request: ?lang= query param wins, then body.lang. */
+function langOf(url, body) {
+  return I18N.normalize(url.searchParams.get('lang') || (body && body.lang) || I18N.DEFAULT_LANG);
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
     req.on('data', (chunk) => {
       data += chunk;
       if (data.length > 1e5) {
-        reject(Object.assign(new Error('Body too large'), { status: 413 }));
+        reject(Object.assign(new Error('Body too large'), { status: 413, key: 'err.bodyTooLarge' }));
         req.destroy();
       }
     });
@@ -54,7 +59,7 @@ function readBody(req) {
       try {
         resolve(JSON.parse(data));
       } catch {
-        reject(Object.assign(new Error('Invalid JSON body'), { status: 400 }));
+        reject(Object.assign(new Error('Invalid JSON body'), { status: 400, key: 'err.invalidJson' }));
       }
     });
     req.on('error', reject);
@@ -84,14 +89,14 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   try {
     if (url.pathname === '/api/state' && req.method === 'GET') {
-      return sendJson(res, 200, { ok: true, state: getRoom(url.searchParams.get('room')).state() });
+      return sendJson(res, 200, { ok: true, state: getRoom(url.searchParams.get('room')).state(langOf(url)) });
     }
 
     if (url.pathname === '/api/hints' && req.method === 'GET') {
       const g = getRoom(url.searchParams.get('room'));
       const unit = g.unitById(String(url.searchParams.get('id') || ''));
-      if (!unit) return sendJson(res, 404, { ok: false, error: 'No such unit' });
-      if (unit.side !== g.turn) return sendJson(res, 400, { ok: false, error: 'Not that side\'s turn' });
+      if (!unit) throw httpError(404, 'err.noUnit');
+      if (unit.side !== g.turn) throw httpError(400, 'err.hintTurn');
       return sendJson(res, 200, {
         ok: true,
         hints: {
@@ -104,27 +109,29 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/') && req.method === 'POST') {
       const body = await readBody(req);
       const room = url.searchParams.get('room') || body.room;
+      const lang = langOf(url, body);
       if (url.pathname === '/api/new') {
-        return sendJson(res, 200, { ok: true, state: resetRoom(room).state() });
+        return sendJson(res, 200, { ok: true, state: resetRoom(room).state(lang) });
       }
       if (url.pathname === '/api/move') {
         const g = getRoom(room);
         g.move(String(body.id), body.x, body.y);
-        return sendJson(res, 200, { ok: true, state: g.state() });
+        return sendJson(res, 200, { ok: true, state: g.state(lang) });
       }
       if (url.pathname === '/api/attack') {
         const g = getRoom(room);
         g.attack(String(body.id), String(body.targetId));
-        return sendJson(res, 200, { ok: true, state: g.state() });
+        return sendJson(res, 200, { ok: true, state: g.state(lang) });
       }
-      return sendJson(res, 404, { ok: false, error: 'Unknown endpoint' });
+      throw httpError(404, 'err.unknownEndpoint');
     }
 
     if (req.method === 'GET') return serveStatic(req, res, url.pathname);
 
-    sendJson(res, 405, { ok: false, error: 'Method not allowed' });
+    throw httpError(405, 'err.methodNotAllowed');
   } catch (err) {
-    sendJson(res, err.status || 500, { ok: false, error: err.message });
+    const message = err.key ? I18N.t(langOf(url), err.key, err.params) : err.message;
+    sendJson(res, err.status || 500, { ok: false, error: message });
   }
 });
 

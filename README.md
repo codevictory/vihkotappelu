@@ -11,6 +11,11 @@ Hotseat mode: the local player commands both sides, alternating turns.
 The server keeps authoritative game state per room, so online play against a
 human can be layered on later by joining a room and claiming the other side.
 
+The UI is available in English and Finnish — use the EN/FI picker in the
+header (the choice is remembered in localStorage). All API endpoints accept a
+`lang` query parameter (`en` or `fi`) and return localized names, log entries
+and error messages.
+
 ## Run
 
 ```
@@ -33,4 +38,5 @@ npm test           # rule tests (node:test, no dependencies)
 - `server.js` — zero-dependency Node HTTP server: static client + JSON API
   (`GET /api/state`, `GET /api/hints`, `POST /api/new`, `POST /api/move`, `POST /api/attack`)
 - `public/` — canvas client with hand-drawn 16x16 pixel sprites
+- `public/i18n.js` — EN/FI string dictionary shared by browser and server (no build step)
 - `test/` — rule tests

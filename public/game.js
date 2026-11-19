@@ -22,6 +22,35 @@ let selectedId = null;
 let hints = { moves: [], attacks: [] };
 let hover = null;
 
+/* ---- language ---- */
+
+const I18N = window.I18N;
+let lang = I18N.DEFAULT_LANG;
+try {
+  lang = I18N.normalize(localStorage.getItem('vihkotappelu-lang') || I18N.DEFAULT_LANG);
+} catch { /* localStorage unavailable — keep default */ }
+const t = (key, params) => I18N.t(lang, key, params);
+
+function applyLang(next) {
+  lang = I18N.normalize(next);
+  try { localStorage.setItem('vihkotappelu-lang', lang); } catch { /* ignore */ }
+  document.documentElement.lang = lang;
+  document.title = t('ui.title');
+  document.getElementById('langPicker').setAttribute('aria-label', t('ui.langPickerLabel'));
+  for (const el of document.querySelectorAll('[data-i18n]')) el.innerHTML = t(el.dataset.i18n);
+  for (const btn of document.querySelectorAll('.lang-btn')) {
+    btn.classList.toggle('active', btn.dataset.lang === lang);
+  }
+}
+
+for (const btn of document.querySelectorAll('.lang-btn')) {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.lang === lang) return;
+    applyLang(btn.dataset.lang);
+    refresh().catch((err) => showStatus(err.message));
+  });
+}
+
 /* ---- pixel-art sprites, 16x16, one char per pixel ---- */
 
 const SPRITES = {
@@ -97,7 +126,8 @@ const PALETTES = {
 /* ---- server API ---- */
 
 async function api(path, body) {
-  const res = await fetch(path, body
+  const sep = path.includes('?') ? '&' : '?';
+  const res = await fetch(path + sep + 'lang=' + encodeURIComponent(lang), body
     ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
     : undefined);
   const data = await res.json().catch(() => ({}));
@@ -296,13 +326,13 @@ function renderPanel() {
   const banner = document.getElementById('turnBanner');
   if (state.gameOver) {
     const w = state.sides[state.winner];
-    banner.innerHTML = `<span class="dot" style="background:${w.color}"></span>${w.name} wins the battle!`;
-    document.getElementById('overlayTitle').textContent = `${w.name} wins!`;
+    banner.innerHTML = `<span class="dot" style="background:${w.color}"></span>${t('ui.bannerWin', { side: w.name })}`;
+    document.getElementById('overlayTitle').textContent = t('ui.overlayWin', { side: w.name });
     document.getElementById('overlayTitle').style.color = w.color;
     document.getElementById('overlay').classList.remove('hidden');
   } else {
     const s = state.sides[state.turn];
-    banner.innerHTML = `<span class="dot" style="background:${s.color}"></span>${s.name}'s turn &mdash; move ${state.moveNumber}. Select a unit, then a highlighted square.`;
+    banner.innerHTML = `<span class="dot" style="background:${s.color}"></span>${t('ui.bannerTurn', { side: s.name, sidegen: { ref: 'side.' + state.turn, form: 'gen' }, move: state.moveNumber })}`;
     document.getElementById('overlay').classList.add('hidden');
   }
 
@@ -310,7 +340,7 @@ function renderPanel() {
   const sel = state.units.find((u) => u.id === selectedId);
   if (!sel) {
     card.className = 'unit-card empty';
-    card.textContent = 'Click one of your units on the board.';
+    card.textContent = t('ui.emptyCard');
   } else {
     const d = sel.def;
     const sideName = state.sides[sel.side].name;
@@ -319,11 +349,11 @@ function renderPanel() {
       `<div class="uname">${d.name}</div>` +
       `<div class="uside" style="color:${state.sides[sel.side].color}">${sideName}</div>` +
       `<table>` +
-      `<tr><td>Health</td><td>${sel.hp} / ${sel.maxHp}</td></tr>` +
-      `<tr><td>Attack</td><td>${d.attack}</td></tr>` +
-      `<tr><td>Defence</td><td>${d.defence}</td></tr>` +
-      `<tr><td>Movement</td><td>${d.movement}</td></tr>` +
-      `<tr><td>Range</td><td>${d.minRange || 1}&ndash;${d.range}</td></tr>` +
+      `<tr><td>${t('ui.statHealth')}</td><td>${sel.hp} / ${sel.maxHp}</td></tr>` +
+      `<tr><td>${t('ui.statAttack')}</td><td>${d.attack}</td></tr>` +
+      `<tr><td>${t('ui.statDefence')}</td><td>${d.defence}</td></tr>` +
+      `<tr><td>${t('ui.statMovement')}</td><td>${d.movement}</td></tr>` +
+      `<tr><td>${t('ui.statRange')}</td><td>${d.minRange || 1}&ndash;${d.range}</td></tr>` +
       `</table>` +
       `<div class="udesc">${d.description || ''}</div>`;
   }
@@ -350,4 +380,5 @@ function clearStatus() {
   document.getElementById('status').textContent = '';
 }
 
+applyLang(lang);
 refresh().catch((err) => showStatus(err.message));

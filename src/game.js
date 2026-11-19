@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const I18N = require('../public/i18n.js');
 
 const UNIT_DEFS = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'units.json'), 'utf8')
@@ -68,11 +69,14 @@ class Game {
         maxHp: def.hp,
       });
     }
-    this.say(`Battle begins. ${SIDES[this.turn].name} to move.`);
+    this.say('log.begin', { side: { ref: 'side.' + this.turn } });
   }
 
-  say(msg) {
-    this.log.push({ n: this.moveNumber, side: this.turn, msg });
+  /* Log entries are stored as {key, params} so state(lang) can render them
+   * in any language; {ref: 'side.azure'}-style params resolve to localized
+   * names at render time. */
+  say(key, params) {
+    this.log.push({ n: this.moveNumber, side: this.turn, key, params: params || {} });
     if (this.log.length > 60) this.log.shift();
   }
 
@@ -127,53 +131,83 @@ class Game {
   }
 
   assertActiveTurn(unit) {
-    if (this.winner) throw httpError(400, 'The battle is already over.');
+    if (this.winner) throw httpError(400, 'err.over');
     if (unit.side !== this.turn) {
-      throw httpError(400, `It is ${SIDES[this.turn].name}'s turn, not ${SIDES[unit.side].name}'s.`);
+      throw httpError(400, 'err.turn', {
+        side: { ref: 'side.' + this.turn },
+        other: { ref: 'side.' + unit.side },
+        sidegen: { ref: 'side.' + this.turn, form: 'gen' },
+        othergen: { ref: 'side.' + unit.side, form: 'gen' },
+      });
     }
   }
 
   move(id, x, y) {
     const unit = this.unitById(id);
-    if (!unit) throw httpError(404, 'No such unit.');
+    if (!unit) throw httpError(404, 'err.noUnit');
     this.assertActiveTurn(unit);
     if (!Number.isInteger(x) || !Number.isInteger(y) || !this.inBounds(x, y)) {
-      throw httpError(400, 'Target square is off the board.');
+      throw httpError(400, 'err.offBoard');
     }
     const ok = this.movesFor(unit).some((m) => m.x === x && m.y === y);
-    if (!ok) throw httpError(400, `${UNIT_DEFS[unit.type].name} cannot move there.`);
+    if (!ok) throw httpError(400, 'err.cannotMove', { unit: { ref: 'unit.' + unit.type + '.name' } });
     const from = { x: unit.x, y: unit.y };
     unit.x = x;
     unit.y = y;
-    this.say(`${SIDES[unit.side].name} ${UNIT_DEFS[unit.type].name} moved ${sq(from)} -> ${sq({ x, y })}.`);
+    this.say('log.move', {
+      side: { ref: 'side.' + unit.side },
+      sidegen: { ref: 'side.' + unit.side, form: 'gen' },
+      unit: { ref: 'unit.' + unit.type + '.name' },
+      from: sq(from),
+      to: sq({ x, y }),
+    });
     this.endTurn();
     return unit;
   }
 
   attack(id, targetId) {
     const unit = this.unitById(id);
-    if (!unit) throw httpError(404, 'No such unit.');
+    if (!unit) throw httpError(404, 'err.noUnit');
     this.assertActiveTurn(unit);
     const target = this.unitById(targetId);
-    if (!target) throw httpError(404, 'No such target.');
+    if (!target) throw httpError(404, 'err.noTarget');
     const ok = this.attacksFor(unit).some((u) => u.id === targetId);
-    if (!ok) throw httpError(400, `${UNIT_DEFS[unit.type].name} cannot reach ${UNIT_DEFS[target.type].name} there.`);
+    if (!ok) {
+      throw httpError(400, 'err.cannotReach', {
+        unit: { ref: 'unit.' + unit.type + '.name' },
+        target: { ref: 'unit.' + target.type + '.name' },
+      });
+    }
 
     const atk = UNIT_DEFS[unit.type].attack;
     const def = UNIT_DEFS[target.type].defence;
     const dmg = Math.max(1, atk - def);
     target.hp -= dmg;
-    this.say(
-      `${SIDES[unit.side].name} ${UNIT_DEFS[unit.type].name} hit ${SIDES[target.side].name} ` +
-      `${UNIT_DEFS[target.type].name} for ${dmg} (ATK ${atk} - DEF ${def}).`
-    );
+    this.say('log.hit', {
+      side: { ref: 'side.' + unit.side },
+      sidegen: { ref: 'side.' + unit.side, form: 'gen' },
+      unit: { ref: 'unit.' + unit.type + '.name' },
+      targetSide: { ref: 'side.' + target.side },
+      targetUnit: { ref: 'unit.' + target.type + '.name' },
+      dmg,
+      atk,
+      def,
+    });
 
     if (target.hp <= 0) {
       this.units = this.units.filter((u) => u.id !== targetId);
-      this.say(`${SIDES[target.side].name} ${UNIT_DEFS[target.type].name} was slain!`);
+      this.say('log.slain', {
+        side: { ref: 'side.' + target.side },
+        sidegen: { ref: 'side.' + target.side, form: 'gen' },
+        unit: { ref: 'unit.' + target.type + '.name' },
+      });
       if (target.type === 'mage') {
         this.winner = unit.side;
-        this.say(`${SIDES[target.side].name}'s mage has fallen. ${SIDES[unit.side].name} wins the battle!`);
+        this.say('log.win', {
+          side: { ref: 'side.' + target.side },
+          sidegen: { ref: 'side.' + target.side, form: 'gen' },
+          winner: { ref: 'side.' + unit.side },
+        });
       }
     }
     this.endTurn();
@@ -186,17 +220,31 @@ class Game {
     if (this.turn === START_SIDE) this.moveNumber += 1;
   }
 
-  state() {
+  /** Serializable state with all human-readable strings localized to lang. */
+  state(lang) {
+    lang = I18N.normalize(lang || I18N.DEFAULT_LANG);
+    const sides = {};
+    for (const key of Object.keys(SIDES)) {
+      sides[key] = { ...SIDES[key], name: I18N.t(lang, 'side.' + key) };
+    }
+    const defs = {};
+    for (const type of Object.keys(UNIT_DEFS)) {
+      defs[type] = {
+        ...UNIT_DEFS[type],
+        name: I18N.t(lang, 'unit.' + type + '.name'),
+        description: I18N.t(lang, 'unit.' + type + '.description'),
+      };
+    }
     return {
       size: SIZE,
-      sides: SIDES,
-      defs: UNIT_DEFS,
+      sides,
+      defs,
       turn: this.turn,
       moveNumber: this.moveNumber,
       winner: this.winner,
       gameOver: this.winner !== null,
-      units: this.units.map((u) => ({ ...u, def: UNIT_DEFS[u.type] })),
-      log: this.log.slice(-30),
+      units: this.units.map((u) => ({ ...u, def: defs[u.type] })),
+      log: this.log.slice(-30).map((e) => ({ n: e.n, side: e.side, msg: I18N.t(lang, e.key, e.params) })),
     };
   }
 }
@@ -205,9 +253,13 @@ function sq(p) {
   return `${'abcdefgh'[p.x]}${8 - p.y}`;
 }
 
-function httpError(status, message) {
-  const err = new Error(message);
+/* Errors carry an i18n key so the server can re-render the message in the
+ * requester's language; err.message stays English for direct (test) use. */
+function httpError(status, key, params) {
+  const err = new Error(I18N.t(I18N.DEFAULT_LANG, key, params));
   err.status = status;
+  err.key = key;
+  err.params = params || {};
   return err;
 }
 
@@ -224,4 +276,4 @@ function resetRoom(id) {
   return g;
 }
 
-module.exports = { Game, getRoom, resetRoom, UNIT_DEFS, SIZE, SIDES };
+module.exports = { Game, getRoom, resetRoom, UNIT_DEFS, SIZE, SIDES, httpError, I18N };

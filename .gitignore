@@ -1,0 +1,2 @@
+# Apache vhosts are server-local, not part of the repo
+deploy/*.conf
