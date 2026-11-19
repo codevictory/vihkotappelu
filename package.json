@@ -1,0 +1,11 @@
+{
+  "name": "vihkotappelu",
+  "version": "1.0.0",
+  "description": "Fantasy turn-based strategy battle game for the browser. Hotseat now, online duels later.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "license": "MIT"
+}

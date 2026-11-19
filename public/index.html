@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vihkotappelu — fantasy strategy battle</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>VIHKOTAPPELU</h1>
+    <div id="turnBanner" class="turn-banner">Loading...</div>
+  </header>
+
+  <main>
+    <div class="board-wrap">
+      <canvas id="board"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <div class="overlay-box">
+          <div id="overlayTitle" class="overlay-title"></div>
+          <div class="overlay-sub">The enemy mage has fallen.</div>
+          <button id="overlayNewGame" class="btn">New Game</button>
+        </div>
+      </div>
+    </div>
+
+    <aside>
+      <section class="panel">
+        <h2>Selected unit</h2>
+        <div id="unitCard" class="unit-card empty">Click one of your units on the board.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Battle log</h2>
+        <div id="log" class="log"></div>
+      </section>
+
+      <section class="panel">
+        <button id="newGame" class="btn">New Game</button>
+        <div id="status" class="status"></div>
+        <details class="rules">
+          <summary>Rules</summary>
+          <ul>
+            <li>8x8 grid, turn based: <strong>one piece acts per turn</strong> (a move or an attack), then the other side goes.</li>
+            <li>Click a unit of the active side, then a green square to move or a red square to attack.</li>
+            <li>Damage = attacker's ATK minus target's DEF (minimum 1).</li>
+            <li>Archers cannot shoot adjacent squares (min range 2).</li>
+            <li>Units block movement. Killing the enemy <strong>mage</strong> wins the battle.</li>
+          </ul>
+        </details>
+        <p class="hint">Hotseat mode: you command both sides, alternating turns. Game state lives on the server per room, so online duels against a human can be added on top of the same API.</p>
+      </section>
+    </aside>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>
