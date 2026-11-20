@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#e5e7eb"/>
+      <stop offset="1" stop-color="#9ca3af"/>
+    </linearGradient>
+  </defs>
+  <!-- gold rim, app accent color -->
+  <path d="M13 7h38q6 0 6 6v18c0 15-10 24.5-25 30C17 55.5 7 46 7 31V13q0-6 6-6Z" fill="#facc15"/>
+  <!-- steel face, like the shield emoji body -->
+  <path d="M18 12h28v19c0 12-6.5 19-14 24-7.5-5-14-12-14-24Z" fill="url(#steel)" stroke="#6b7280" stroke-width="1.5"/>
+  <!-- left half catches the light, like the emoji bevel -->
+  <path d="M32 12v43c-7.5-5-14-12-14-24V12Z" fill="#ffffff" opacity="0.28"/>
+  <!-- center ridge -->
+  <path d="M32 12v43" fill="none" stroke="#6b7280" stroke-width="1.6" opacity="0.55"/>
+</svg>
