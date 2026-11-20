@@ -169,7 +169,7 @@ test('minimum damage is 1 even against huge defence', () => {
   }
 });
 
-test('range window: arbalesters cannot hit adjacent, can hit at 2..4; knights reach 2', () => {
+test('range window: arbalesters cannot hit adjacent, can hit at 2..4; knights reach 1', () => {
   const g = freshGame();
   const arbalester = unitsOf(g, 'dalmen', 'arbalesters')[0]; // at (17,31)
   const foe = unitsOf(g, 'zhaglon')[0];
@@ -187,9 +187,9 @@ test('range window: arbalesters cannot hit adjacent, can hit at 2..4; knights re
   assert.equal(g.attacksFor(arbalester).length, 0);
 
   const knight = unitsOf(g, 'dalmen', 'knights_of_gremloth')[0]; // at (15,31)
-  foe.x = knight.x + 2; foe.y = knight.y; // reach 2
+  foe.x = knight.x + 1; foe.y = knight.y; // reach 1
   assert.equal(g.attacksFor(knight).length, 1);
-  foe.x = knight.x + 3; foe.y = knight.y;
+  foe.x = knight.x + 2; foe.y = knight.y;
   assert.equal(g.attacksFor(knight).length, 0);
 });
 

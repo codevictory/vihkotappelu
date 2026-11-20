@@ -11,7 +11,7 @@
       "attack": 9,
       "defence": 3,
       "movement": 3,
-      "range": 2,
+      "range": 1,
       "minRange": 1,
       "sprite": "soldiers_of_falroth"
     },
@@ -21,7 +21,7 @@
       "attack": 12,
       "defence": 2,
       "movement": 5,
-      "range": 2,
+      "range": 1,
       "minRange": 1,
       "sprite": "knights_of_gremloth"
     },

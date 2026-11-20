@@ -112,7 +112,7 @@
       'ui.rules4': 'Jousimiehet eivät voi ampua viereiseen ruutuun (min. kantama 2).',
       'ui.rules5': 'Yksiköt estävät liikkumisen. Vastustajan kaikkien yksiköiden tuhoaminen voittaa taistelun.',
       'ui.rules6': 'Metsät, vuoret ja talot ovat esteitä: yksiköt eivät voi siirtyä niiden päälle tai läpi.',
-      'ui.hint': 'Hotseat-tila: komennat molempia puolia vuorotellen. Pelin tila on palvelimella huonekohtaisesti, joten kaksinpelit ihmistä vastaan voidaan lisätä saman rajapinnan päälle.',
+      'ui.hint': 'Hotseat-tila: komennat molempia puolia vuorotellen.',
       'ui.statHealth': 'Kestävyys',
       'ui.statAttack': 'Hyökkäys',
       'ui.statDefence': 'Puolustus',

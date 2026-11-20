@@ -21,7 +21,7 @@
       "attack": 8,
       "defence": 3,
       "movement": 6,
-      "range": 2,
+      "range": 1,
       "minRange": 1,
       "sprite": "knights_of_zhaglon"
     },
@@ -31,7 +31,7 @@
       "attack": 7,
       "defence": 4,
       "movement": 6,
-      "range": 2,
+      "range": 1,
       "minRange": 1,
       "sprite": "war_chariot"
     },
