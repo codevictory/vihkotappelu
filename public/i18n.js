@@ -92,7 +92,7 @@
       'err.methodNotAllowed': 'Method not allowed',
     },
     fi: {
-      'ui.title': 'Vihkotappelu — fantasiastrategiataistelu',
+      'ui.title': 'Vihkotappelu — fantasia sotapeli',
       'ui.loading': 'Ladataan...',
       'ui.newGame': 'Uusi peli',
       'ui.endTurn': 'Lopeta vuoro',
