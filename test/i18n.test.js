@@ -20,44 +20,46 @@ test('unknown or missing lang falls back to English', () => {
 test('state(lang) localizes side names, unit defs and log entries', () => {
   const g = new Game();
   const fi = g.state('fi');
-  assert.equal(fi.sides.azure.name, 'Asuuriritarikunta');
-  assert.equal(fi.sides.crimson.name, 'Karmiiniliitto');
-  assert.equal(fi.defs.mage.name, 'Magi');
-  assert.ok(fi.defs.archer.description.length > 0);
-  assert.match(fi.log[0].msg, /Taistelu alkaa\. Asuuriritarikunta/);
-  assert.equal(fi.units[0].def.name, 'Keihäsmies');
+  assert.equal(fi.sides.dalmen.name, 'Dalmen');
+  assert.equal(fi.sides.zhaglon.name, 'Zhaglon');
+  assert.equal(fi.defs.knights_of_zhaglon.name, 'Zhaglonin ritarit');
+  assert.match(fi.log[0].msg, /Taistelu alkaa\. Dalmen/);
+  assert.equal(fi.units[0].def.name, 'Falrothin sotilaat');
 
   const en = g.state('en');
-  assert.equal(en.sides.azure.name, 'Azure Order');
-  assert.match(en.log[0].msg, /Battle begins\. Azure Order/);
+  assert.equal(en.sides.dalmen.name, 'Dalmen');
+  assert.equal(en.sides.zhaglon.name, 'Zhaglon');
+  assert.equal(en.defs.catapult.name, 'Catapult');
+  assert.match(en.log[0].msg, /Battle begins\. Dalmen/);
 });
 
 test('move and attack log entries render in Finnish with localized names', () => {
   const g = new Game();
-  const spearman = g.units.find((u) => u.id === 'azure-spearman-1');
-  g.move(spearman.id, 1, 5);
+  const soldier = g.units.find((u) => u.side === 'dalmen' && u.type === 'soldiers_of_falroth' && u.x === 12);
+  g.move(soldier.id, 12, 29);
   let fi = g.state('fi');
-  assert.match(fi.log.at(-1).msg, /Asuuriritarikunnan Keihäsmies siirtyi b1 -> b3\./);
+  assert.match(fi.log.at(-1).msg, /Dalmenin Falrothin sotilaat siirtyi m1 -> m3\./);
   const en = g.state('en');
-  assert.match(en.log.at(-1).msg, /Azure Order Spearman moved b1 -> b3\./);
+  assert.match(en.log.at(-1).msg, /Dalmen Soldiers of Falroth moved m1 -> m3\./);
 
-  const mage = g.units.find((u) => u.side === 'crimson' && u.type === 'mage');
-  const target = g.units.find((u) => u.side === 'azure' && u.type === 'archer');
-  mage.x = target.x; mage.y = target.y + 1;
-  g.attack(mage.id, target.id);
+  g.endTurn(); // dalmen has acted; hand the turn to zhaglon
+  const knight = g.units.find((u) => u.side === 'zhaglon' && u.type === 'knights_of_zhaglon');
+  const target = g.units.find((u) => u.side === 'dalmen' && u.type === 'arbalesters');
+  knight.x = target.x; knight.y = target.y + 1;
+  g.attack(knight.id, target.id);
   fi = g.state('fi');
-  assert.match(fi.log.at(-1).msg, /Karmiiniliiton Magi osui kohteeseen Jousimies \(Asuuriritarikunta\)/);
+  assert.match(fi.log.at(-1).msg, /Zhaglonin Zhaglonin ritarit osui kohteeseen Varsijousimiehet \(Dalmen\)/);
 });
 
 test('errors carry i18n keys so the server can localize them per request', () => {
   const g = new Game();
-  const crimson = g.units.find((u) => u.side === 'crimson');
-  assert.throws(() => g.move(crimson.id, 2, 1), /azure/i); // English default kept for direct use
+  const zhaglon = g.units.find((u) => u.side === 'zhaglon');
+  assert.throws(() => g.move(zhaglon.id, 2, 1), /dalmen/i); // English default kept for direct use
   try {
-    g.move(crimson.id, 2, 1);
+    g.move(zhaglon.id, 2, 1);
     assert.fail('should have thrown');
   } catch (err) {
     assert.equal(err.key, 'err.turn');
-    assert.match(I18N.t('fi', err.key, err.params), /Nyt on Asuuriritarikunnan vuoro, ei Karmiiniliiton\./);
+    assert.match(I18N.t('fi', err.key, err.params), /Nyt on Dalmenin vuoro, ei Zhaglonin\./);
   }
 });

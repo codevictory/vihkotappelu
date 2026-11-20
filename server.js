@@ -11,8 +11,10 @@
  *
  *   GET  /api/state?room=ID   -> game state JSON
  *   POST /api/new    {room}          -> reset room
- *   POST /api/move   {room,id,x,y}   -> move one unit (ends the turn)
- *   POST /api/attack {room,id,targetId} -> attack with one unit (ends the turn)
+ *   POST /api/move   {room,id,x,y}   -> move one unit (once per unit per turn)
+ *   POST /api/attack {room,id,targetId} -> attack with one unit (once per unit per turn)
+ *   POST /api/endturn {room}         -> pass; the turn also passes automatically
+ *                                        once every unit of the active side is spent
  */
 
 const http = require('http');
@@ -100,8 +102,10 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, {
         ok: true,
         hints: {
-          moves: g.movesFor(unit),
-          attacks: g.attacksFor(unit).map((u) => ({ id: u.id, x: u.x, y: u.y, type: u.type, side: u.side })),
+          moves: unit.hasMoved ? [] : g.movesFor(unit),
+          attacks: unit.hasAttacked
+            ? []
+            : g.attacksFor(unit).map((u) => ({ id: u.id, x: u.x, y: u.y, type: u.type, side: u.side })),
         },
       });
     }
@@ -121,6 +125,11 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === '/api/attack') {
         const g = getRoom(room);
         g.attack(String(body.id), String(body.targetId));
+        return sendJson(res, 200, { ok: true, state: g.state(lang) });
+      }
+      if (url.pathname === '/api/endturn') {
+        const g = getRoom(room);
+        g.endTurn();
         return sendJson(res, 200, { ok: true, state: g.state(lang) });
       }
       throw httpError(404, 'err.unknownEndpoint');

@@ -1,0 +1,49 @@
+{
+  "faction": {
+    "id": "zhaglon",
+    "name": "Zhaglon",
+    "color": "#a855f7"
+  },
+  "units": {
+    "riders_of_nezek": {
+      "name": { "en": "Riders of Nezek", "fi": "Nezekin ratsastajat" },
+      "hp": 13,
+      "attack": 6,
+      "defence": 2,
+      "movement": 5,
+      "range": 4,
+      "minRange": 1,
+      "sprite": "riders_of_nezek"
+    },
+    "knights_of_zhaglon": {
+      "name": { "en": "Knights of Zhaglon", "fi": "Zhaglonin ritarit" },
+      "hp": 22,
+      "attack": 8,
+      "defence": 3,
+      "movement": 6,
+      "range": 2,
+      "minRange": 1,
+      "sprite": "knights_of_zhaglon"
+    },
+    "war_chariot": {
+      "name": { "en": "War chariot", "fi": "Sotavaunut" },
+      "hp": 25,
+      "attack": 7,
+      "defence": 4,
+      "movement": 6,
+      "range": 2,
+      "minRange": 1,
+      "sprite": "war_chariot"
+    },
+    "archers_of_grishtalon": {
+      "name": { "en": "Archers of Grishtalon", "fi": "Grishtalonin jousimiehet" },
+      "hp": 15,
+      "attack": 6,
+      "defence": 1,
+      "movement": 3,
+      "range": 6,
+      "minRange": 2,
+      "sprite": "archers_of_grishtalon"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "faction": {
+    "id": "dalmen",
+    "name": "Dalmen",
+    "color": "#22c55e"
+  },
+  "units": {
+    "soldiers_of_falroth": {
+      "name": { "en": "Soldiers of Falroth", "fi": "Falrothin sotilaat" },
+      "hp": 26,
+      "attack": 9,
+      "defence": 3,
+      "movement": 3,
+      "range": 2,
+      "minRange": 1,
+      "sprite": "soldiers_of_falroth"
+    },
+    "knights_of_gremloth": {
+      "name": { "en": "Knights of Gremloth", "fi": "Gremlothin ritarit" },
+      "hp": 20,
+      "attack": 12,
+      "defence": 2,
+      "movement": 5,
+      "range": 2,
+      "minRange": 1,
+      "sprite": "knights_of_gremloth"
+    },
+    "arbalesters": {
+      "name": { "en": "Arbalesters", "fi": "Varsijousimiehet" },
+      "hp": 14,
+      "attack": 8,
+      "defence": 1,
+      "movement": 3,
+      "range": 4,
+      "minRange": 2,
+      "sprite": "arbalesters"
+    },
+    "catapult": {
+      "name": { "en": "Catapult", "fi": "Katapultti" },
+      "hp": 10,
+      "attack": 10,
+      "defence": 0,
+      "movement": 2,
+      "range": 5,
+      "minRange": 3,
+      "sprite": "catapult"
+    }
+  }
+}

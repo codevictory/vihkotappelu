@@ -22,7 +22,7 @@
       <div id="overlay" class="overlay hidden">
         <div class="overlay-box">
           <div id="overlayTitle" class="overlay-title"></div>
-          <div class="overlay-sub" data-i18n="ui.overlaySub">The enemy mage has fallen.</div>
+          <div class="overlay-sub" data-i18n="ui.overlaySub">The enemy army has been destroyed.</div>
           <button id="overlayNewGame" class="btn" data-i18n="ui.newGame">New Game</button>
         </div>
       </div>
@@ -40,16 +40,20 @@
       </section>
 
       <section class="panel">
-        <button id="newGame" class="btn" data-i18n="ui.newGame">New Game</button>
+        <div class="btn-row">
+          <button id="newGame" class="btn" data-i18n="ui.newGame">New Game</button>
+          <button id="endTurn" class="btn btn-secondary" data-i18n="ui.endTurn">End turn</button>
+        </div>
         <div id="status" class="status"></div>
         <details class="rules">
           <summary data-i18n="ui.rules">Rules</summary>
           <ul>
-            <li data-i18n="ui.rules1">8x8 grid, turn based: <strong>one piece acts per turn</strong> (a move or an attack), then the other side goes.</li>
-            <li data-i18n="ui.rules2">Click a unit of the active side, then a green square to move or a red square to attack.</li>
+            <li data-i18n="ui.rules1">32x32 grid, turn based: on your turn <strong>every unit may move once and attack once</strong> (if a target is in range), then the other side goes.</li>
+            <li data-i18n="ui.rules2">Click a unit of the active side, then a green square to move and a red square to attack. Spent units are dimmed — press End turn to pass the rest.</li>
             <li data-i18n="ui.rules3">Damage = attacker's ATK minus target's DEF (minimum 1).</li>
             <li data-i18n="ui.rules4">Archers cannot shoot adjacent squares (min range 2).</li>
-            <li data-i18n="ui.rules5">Units block movement. Killing the enemy <strong>mage</strong> wins the battle.</li>
+            <li data-i18n="ui.rules5">Units block movement. Destroying every enemy unit wins the battle.</li>
+            <li data-i18n="ui.rules6">Forests, mountains and houses are obstacles: units cannot move onto or through them.</li>
           </ul>
         </details>
         <p class="hint" data-i18n="ui.hint">Hotseat mode: you command both sides, alternating turns. Game state lives on the server per room, so online duels against a human can be added on top of the same API.</p>
@@ -58,6 +62,7 @@
   </main>
 
   <script src="i18n.js"></script>
+  <script src="sprites.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

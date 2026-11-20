@@ -75,8 +75,8 @@ main {
 
 .board-wrap {
   position: relative;
-  width: 640px;
-  height: 640px;
+  width: fit-content;
+  height: fit-content;
 }
 
 canvas {
@@ -161,6 +161,13 @@ aside {
 
 .btn:hover { background: #fde047; }
 .btn:active { transform: translate(1px, 1px); }
+
+.btn-row { display: flex; gap: 10px; }
+
+.btn-secondary { background: #241d3d; color: #e7e2f5; }
+.btn-secondary:hover { background: #322a52; }
+
+.unit-card .uacted { margin-top: 6px; font-size: 11px; color: #f87171; }
 
 .status {
   min-height: 18px;

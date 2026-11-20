@@ -3,8 +3,8 @@
 /* Vihkotappelu client — mouse-driven canvas renderer.
  * The server owns the rules; this file only renders state and sends actions. */
 
-const SIZE = 8;
-const TILE = 80;
+const SIZE = 32;
+const TILE = 24;
 const BOARD_PX = SIZE * TILE;
 
 const canvas = document.getElementById('board');
@@ -51,77 +51,12 @@ for (const btn of document.querySelectorAll('.lang-btn')) {
   });
 }
 
-/* ---- pixel-art sprites, 16x16, one char per pixel ---- */
+/* ---- sprites ----
+ * Pixel-art sprites (16x16, one char per pixel) and side palettes live in
+ * sprites.js, loaded before this file: window.SPRITES / window.PALETTES. */
 
-const SPRITES = {
-  spearman: [
-    '................',
-    '............W...',
-    '............M...',
-    '......HH....W...',
-    '.....HHHH...W...',
-    '.....HSEH...W...',
-    '......SS....W...',
-    '.....AAAA...W...',
-    '....AAAAAA..W...',
-    '....ADAAAD......',
-    '....ADAAAD......',
-    '.....A..A.......',
-    '.....L..L.......',
-    '.....L..L.......',
-    '....LL..LL......',
-    '................',
-  ],
-  archer: [
-    '................',
-    '.B..............',
-    '.BB.............',
-    '..B.....HH......',
-    '..B....HHHH.....',
-    '...B...HSEH.....',
-    '...B....SS......',
-    '..B...AAAA......',
-    '.B...AAAAAA.....',
-    '.BB..ADAAAD.....',
-    '..B..ADAAAD.....',
-    '.....A..A.......',
-    '.....L..L.......',
-    '.....L..L.......',
-    '....LL..LL......',
-    '................',
-  ],
-  mage: [
-    '.......P........',
-    '.......PP.......',
-    '.......PP.......',
-    '......PPP.......',
-    '.....PPPPP......',
-    '....PPPPPPP.....',
-    '.....HSEH.......',
-    'O.....SS........',
-    'W....RRRRR......',
-    'W...RRRRRRR.....',
-    'W...RRRRRRR.....',
-    'W...RRRRRRR.....',
-    'W...RRRRRRR.....',
-    '....RRRRRRR.....',
-    '...RRRRRRRRR....',
-    '...RRRRRRRRR....',
-  ],
-};
-
-const PALETTES = {
-  azure: {
-    H: '#bfdbfe', A: '#3b82f6', D: '#1e40af', S: '#f1c27d', E: '#1f2937',
-    L: '#172554', W: '#92400e', M: '#e5e7eb', B: '#92400e', R: '#60a5fa',
-    P: '#1d4ed8', O: '#facc15',
-  },
-  crimson: {
-    H: '#fecaca', A: '#ef4444', D: '#7f1d1d', S: '#f1c27d', E: '#1f2937',
-    L: '#450a0a', W: '#92400e', M: '#e5e7eb', B: '#92400e', R: '#dc2626',
-    P: '#991b1b', O: '#facc15',
-  },
-};
+const SPRITES = window.SPRITES;
+const PALETTES = window.PALETTES;
 
 /* ---- server API ---- */
 
@@ -172,6 +107,10 @@ function unitAt(x, y) {
   return state.units.find((u) => u.x === x && u.y === y) || null;
 }
 
+function canSelect(u) {
+  return !u.hasMoved || !u.hasAttacked;
+}
+
 function actionable(t) {
   if (!state || state.gameOver || !t) return false;
   if (selectedId) {
@@ -179,7 +118,7 @@ function actionable(t) {
     if (hints.attacks.some((a) => a.x === t.x && a.y === t.y)) return true;
   }
   const u = unitAt(t.x, t.y);
-  return !!(u && u.side === state.turn);
+  return !!(u && u.side === state.turn && canSelect(u));
 }
 
 canvas.addEventListener('click', async (e) => {
@@ -194,27 +133,37 @@ canvas.addEventListener('click', async (e) => {
       if (atk) {
         const r = await api('/api/attack', { id: selectedId, targetId: atk.id });
         state = r.state;
-        selectedId = null;
-        hints = { moves: [], attacks: [] };
+        await afterAction(selectedId);
       } else if (mv) {
         const r = await api('/api/move', { id: selectedId, x: t.x, y: t.y });
         state = r.state;
-        selectedId = null;
-        hints = { moves: [], attacks: [] };
+        await afterAction(selectedId);
       } else {
         const u = unitAt(t.x, t.y);
-        if (u && u.side === state.turn) await selectUnit(u.id);
+        if (u && u.side === state.turn && canSelect(u)) await selectUnit(u.id);
         else { selectedId = null; hints = { moves: [], attacks: [] }; }
       }
     } else {
       const u = unitAt(t.x, t.y);
-      if (u && u.side === state.turn) await selectUnit(u.id);
+      if (u && u.side === state.turn && canSelect(u)) await selectUnit(u.id);
     }
   } catch (err) {
     showStatus(err.message);
   }
   renderAll();
 });
+
+/* After acting, keep the unit selected if it can still do something this
+ * turn (e.g. attack from its new square); otherwise clear the selection. */
+async function afterAction(unitId) {
+  const u = state.units.find((x) => x.id === unitId);
+  if (!state.gameOver && u && u.side === state.turn && canSelect(u)) {
+    await selectUnit(unitId);
+  } else {
+    selectedId = null;
+    hints = { moves: [], attacks: [] };
+  }
+}
 
 canvas.addEventListener('mousemove', (e) => {
   hover = tileFromEvent(e);
@@ -231,6 +180,20 @@ canvas.addEventListener('mouseleave', () => {
 document.getElementById('newGame').addEventListener('click', () => newGame().catch((err) => showStatus(err.message)));
 document.getElementById('overlayNewGame').addEventListener('click', () => newGame().catch((err) => showStatus(err.message)));
 
+document.getElementById('endTurn').addEventListener('click', async () => {
+  if (!state || state.gameOver) return;
+  try {
+    const r = await api('/api/endturn', {});
+    state = r.state;
+    selectedId = null;
+    hints = { moves: [], attacks: [] };
+    clearStatus();
+  } catch (err) {
+    showStatus(err.message);
+  }
+  renderAll();
+});
+
 /* ---- rendering ---- */
 
 function renderAll() {
@@ -240,15 +203,9 @@ function renderAll() {
 
 function renderBoard() {
   if (!state) return;
-  const light = '#3a3157';
-  const dark = '#2b2444';
 
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      ctx.fillStyle = (x + y) % 2 === 0 ? light : dark;
-      ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
-    }
-  }
+  ctx.fillStyle = '#2b2444';
+  ctx.fillRect(0, 0, BOARD_PX, BOARD_PX);
 
   ctx.strokeStyle = 'rgba(0,0,0,0.35)';
   ctx.lineWidth = 1;
@@ -257,12 +214,11 @@ function renderBoard() {
     ctx.beginPath(); ctx.moveTo(0, i * TILE); ctx.lineTo(BOARD_PX, i * TILE); ctx.stroke();
   }
 
-  ctx.font = '10px monospace';
-  ctx.fillStyle = 'rgba(231,226,245,0.45)';
-  for (let x = 0; x < SIZE; x++) ctx.fillText('abcdefgh'[x], x * TILE + 4, BOARD_PX - 6);
-  for (let y = 0; y < SIZE; y++) ctx.fillText(String(SIZE - y), 4, y * TILE + 12);
+  for (const o of state.obstacles || []) drawObstacle(o);
 
   if (selectedId) {
+    const sel = state.units.find((u) => u.id === selectedId);
+    if (sel) drawRangeIndicator(sel);
     for (const m of hints.moves) {
       ctx.fillStyle = 'rgba(74,222,128,0.30)';
       ctx.fillRect(m.x * TILE + 4, m.y * TILE + 4, TILE - 8, TILE - 8);
@@ -271,7 +227,6 @@ function renderBoard() {
       ctx.fillStyle = 'rgba(248,113,113,0.38)';
       ctx.fillRect(a.x * TILE + 4, a.y * TILE + 4, TILE - 8, TILE - 8);
     }
-    const sel = state.units.find((u) => u.id === selectedId);
     if (sel) {
       ctx.strokeStyle = '#facc15';
       ctx.lineWidth = 3;
@@ -288,12 +243,35 @@ function renderBoard() {
   }
 }
 
-function drawUnit(u) {
-  const px = u.x * TILE + 8;
-  const py = u.y * TILE + 8;
-  const scale = 4;
-  const map = SPRITES[u.def.sprite] || SPRITES.spearman;
-  const pal = PALETTES[u.side] || PALETTES.azure;
+/* Range indicator: every square the selected unit could attack from its
+ * current square (Chebyshev distance within [minRange, range]), marked with a
+ * faint fill and the 'range' bracket sprite. Drawn before the move/attack
+ * hints so those stay on top. */
+function drawRangeIndicator(sel) {
+  const min = sel.def.minRange || 1;
+  const max = sel.def.range;
+  for (let dy = -max; dy <= max; dy++) {
+    for (let dx = -max; dx <= max; dx++) {
+      const d = Math.max(Math.abs(dx), Math.abs(dy));
+      if (d < min || d > max) continue;
+      const x = sel.x + dx;
+      const y = sel.y + dy;
+      if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) continue;
+      ctx.fillStyle = 'rgba(250,204,21,0.08)';
+      ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+      drawOverlay('range', x, y);
+    }
+  }
+}
+
+/* Tile overlay sprites (range markers) use the side-independent overlay palette. */
+function drawOverlay(type, tx, ty) {
+  const map = SPRITES[type];
+  if (!map) return;
+  const pal = PALETTES.overlay || {};
+  const scale = Math.max(1, Math.floor((TILE - 4) / 16));
+  const px = tx * TILE + (TILE - 16 * scale) / 2;
+  const py = ty * TILE + (TILE - 16 * scale) / 2;
   for (let y = 0; y < map.length; y++) {
     const row = map[y];
     for (let x = 0; x < row.length; x++) {
@@ -303,23 +281,63 @@ function drawUnit(u) {
       ctx.fillRect(px + x * scale, py + y * scale, scale, scale);
     }
   }
+}
+
+/* Obstacles use the side-independent terrain palette. */
+function drawObstacle(o) {
+  const map = SPRITES[o.type];
+  if (!map) return;
+  const pal = PALETTES.terrain || {};
+  const scale = Math.max(1, Math.floor((TILE - 4) / 16));
+  const px = o.x * TILE + (TILE - 16 * scale) / 2;
+  const py = o.y * TILE + (TILE - 16 * scale) / 2;
+  for (let y = 0; y < map.length; y++) {
+    const row = map[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.') continue;
+      ctx.fillStyle = pal[ch] || '#ffffff';
+      ctx.fillRect(px + x * scale, py + y * scale, scale, scale);
+    }
+  }
+}
+
+function drawUnit(u) {
+  const scale = Math.max(1, Math.floor((TILE - 8) / 16));
+  const px = u.x * TILE + (TILE - 16 * scale) / 2;
+  const py = u.y * TILE + 6; // leave the top of the tile for the hp bar
+  const map = SPRITES[u.def.sprite] || SPRITES.spearman;
+  const pal = PALETTES[u.side] || PALETTES.dalmen;
+  const spent = u.hasMoved && u.hasAttacked;
+  ctx.save();
+  if (spent) ctx.globalAlpha = 0.4;
+  for (let y = 0; y < map.length; y++) {
+    const row = map[y];
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.') continue;
+      ctx.fillStyle = pal[ch] || '#ffffff';
+      ctx.fillRect(px + x * scale, py + y * scale, scale, scale);
+    }
+  }
+  ctx.restore();
+
+  /* Moved-status highlight: green = not moved yet, red = already moved.
+   * The selected unit is skipped — it already has a yellow selection frame. */
+  if (u.id !== selectedId) {
+    ctx.strokeStyle = u.hasMoved ? '#f87171' : '#4ade80';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(u.x * TILE + 1, u.y * TILE + 1, TILE - 2, TILE - 2);
+  }
 
   const frac = Math.max(0, u.hp / u.maxHp);
-  const barW = 48;
+  const barW = TILE - 6;
   const bx = u.x * TILE + (TILE - barW) / 2;
-  const by = u.y * TILE + 5;
+  const by = u.y * TILE + 1;
   ctx.fillStyle = '#0c0916';
-  ctx.fillRect(bx - 1, by - 1, barW + 2, 8);
+  ctx.fillRect(bx - 1, by, barW + 2, 5);
   ctx.fillStyle = frac > 0.5 ? '#4ade80' : frac > 0.25 ? '#fbbf24' : '#f87171';
-  ctx.fillRect(bx, by, barW * frac, 6);
-
-  ctx.font = '10px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#0c0916';
-  ctx.fillText(`${u.hp}/${u.maxHp}`, u.x * TILE + TILE / 2 + 1, u.y * TILE + TILE - 4 + 1);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(`${u.hp}/${u.maxHp}`, u.x * TILE + TILE / 2, u.y * TILE + TILE - 4);
-  ctx.textAlign = 'left';
+  ctx.fillRect(bx, by + 1, barW * frac, 3);
 }
 
 function renderPanel() {
@@ -344,6 +362,9 @@ function renderPanel() {
   } else {
     const d = sel.def;
     const sideName = state.sides[sel.side].name;
+    const acted = [];
+    if (sel.hasMoved) acted.push(t('ui.hasMoved'));
+    if (sel.hasAttacked) acted.push(t('ui.hasAttacked'));
     card.className = 'unit-card';
     card.innerHTML =
       `<div class="uname">${d.name}</div>` +
@@ -355,6 +376,7 @@ function renderPanel() {
       `<tr><td>${t('ui.statMovement')}</td><td>${d.movement}</td></tr>` +
       `<tr><td>${t('ui.statRange')}</td><td>${d.minRange || 1}&ndash;${d.range}</td></tr>` +
       `</table>` +
+      (acted.length ? `<div class="uacted">${acted.join(' · ')}</div>` : '') +
       `<div class="udesc">${d.description || ''}</div>`;
   }
 
