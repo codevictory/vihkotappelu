@@ -5,6 +5,15 @@ Hotseat two-player on one machine today; the server API is per-room, so online
 duels against a human can be added later on the same API. Zero npm
 dependencies, no build step, vanilla JS + canvas.
 
+## Keeping this file up to date
+
+- Whenever code in this repo is changed (rules, API, client, i18n, sprites,
+  factions, commands, deploy), amend this AGENTS.md in the same change so it
+  keeps describing the repo as it actually is — update the affected sections
+  (Commands, Layout, Rules, Conventions, Gotchas), don't leave stale entries.
+- If a change makes a section here wrong or incomplete, fix it as part of the
+  same commit; if the change introduces a new recurring pattern, add it here.
+
 ## Commands
 
 - `npm start` — dev server at http://localhost:3000 (`PORT` env overrides; pm2 production uses 4200)
