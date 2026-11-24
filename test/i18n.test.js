@@ -2,8 +2,12 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Game } = require('../src/game');
+const { Game, setGameData } = require('../src/game');
+const gameDataFixture = require('./gameData.fixture.json');
 const I18N = require('../public/i18n');
+
+/* Seed the klapi-hosted game data from the test fixture (no network). */
+setGameData(gameDataFixture);
 
 test('every en string has a fi translation and vice versa', () => {
   assert.deepEqual(Object.keys(I18N.STRINGS.fi).sort(), Object.keys(I18N.STRINGS.en).sort());

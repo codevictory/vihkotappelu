@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "sync-data": "node tools/sync_to_klapi.js",
+    "fetch-data": "node tools/fetch_game_data.js"
   },
   "license": "MIT"
 }

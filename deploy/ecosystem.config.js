@@ -20,6 +20,12 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: '4200',
+        // klapi API hosting the unit/faction data (game server reads it via
+        // GET /vihkotappelu/data, site-to-site X-API-Key auth, HTTPS only).
+        // KLAPI_SITE_API_KEY is a secret: it is taken from the server's
+        // environment (pm2 env), never committed to this file.
+        KLAPI_BASE_URL: process.env.KLAPI_BASE_URL || 'https://klapi.tietokonepaja.fi',
+        KLAPI_SITE_API_KEY: process.env.KLAPI_SITE_API_KEY || '',
       },
       instances: 1,
       exec_mode: 'fork',

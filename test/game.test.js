@@ -2,7 +2,13 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Game, UNIT_DEFS, SIZE, OBSTACLE_TYPES, OBSTACLE_CLEARANCE } = require('../src/game');
+const { Game, setGameData, UNIT_DEFS, SIZE, OBSTACLE_TYPES, OBSTACLE_CLEARANCE } = require('../src/game');
+const gameDataFixture = require('./gameData.fixture.json');
+
+/* The game reads its unit/faction data from the klapi database at runtime;
+ * the tests seed it from the fixture (same payload shape as
+ * GET /vihkotappelu/data) so no network is needed. */
+setGameData(gameDataFixture);
 
 function freshGame() {
   return new Game();
@@ -317,4 +323,48 @@ test('state carries the obstacle layout', () => {
   JSON.parse(JSON.stringify(s));
   assert.deepEqual(s.obstacles, g.obstacles);
   assert.ok(s.obstacles.every((o) => OBSTACLE_TYPES.includes(o.type)));
+});
+
+test('setGameData validates the payload and leaves the previous data intact on failure', () => {
+  const before = JSON.parse(JSON.stringify(UNIT_DEFS));
+  assert.throws(() => setGameData(null), /units/);
+  assert.throws(() => setGameData({ units: [], factions: [] }), /two factions/);
+  assert.throws(() => setGameData({ units: [{ hp: 1 }], factions: [{ id: 'a' }, { id: 'b' }] }), /unitKey/);
+  assert.throws(
+    () => setGameData({ units: [{ unitKey: 'x', hp: 1 }], factions: [{ id: 'a' }, { id: 'b' }] }),
+    /unknown unit|no opening army/,
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(UNIT_DEFS)), before, 'failed setGameData must not clobber UNIT_DEFS');
+});
+
+test('setGameData loads units and factions; state() falls back to the klapi names when an i18n key is missing', () => {
+  const data = JSON.parse(JSON.stringify(gameDataFixture));
+  // add a unit and a faction name that have no i18n keys
+  data.units.push({
+    unitKey: 'test_dragon',
+    name: 'Dragon',
+    description: 'Breathes fire.',
+    hp: 50, attack: 15, defence: 5, movement: 4, range: 2, minRange: 1,
+    sprite: 'test_dragon', sortOrder: 99,
+    translations: {
+      en: { name: 'Dragon', description: 'Breathes fire.' },
+      fi: { name: 'Lohikäärme', description: 'Syöksee tulta.' },
+    },
+  });
+  setGameData(data);
+  try {
+    assert.equal(UNIT_DEFS.test_dragon.attack, 15);
+    const g = new Game();
+    const en = g.state('en');
+    assert.equal(en.defs.test_dragon.name, 'Dragon');
+    assert.equal(en.defs.test_dragon.description, 'Breathes fire.');
+    const fi = g.state('fi');
+    assert.equal(fi.defs.test_dragon.name, 'Lohikäärme');
+    assert.equal(fi.defs.test_dragon.description, 'Syöksee tulta.');
+    // known units still resolve through i18n as before
+    assert.equal(fi.defs.catapult.name, 'Katapultti');
+    assert.equal(en.sides.dalmen.name, 'Dalmen');
+  } finally {
+    setGameData(gameDataFixture);
+  }
 });

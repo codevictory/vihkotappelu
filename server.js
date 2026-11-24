@@ -20,10 +20,29 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { getRoom, resetRoom, httpError, I18N } = require('./src/game');
+const { getRoom, resetRoom, setGameData, httpError, I18N } = require('./src/game');
+const { fetchGameDataFromKlapi, KLAPI_BASE_URL } = require('./lib/klapiClient');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+/* Unit and faction data is hosted by the klapi API and is always fetched
+ * from there ALL AT ONCE (one bulk GET /vihkotappelu/data call), never from
+ * a local file. The bulk result is cached for this long; after that a single
+ * fresh bulk call is made on the next API request. If a refresh fails, the
+ * last good data is kept.
+ * Env: KLAPI_BASE_URL, KLAPI_SITE_API_KEY (see lib/klapiClient.js),
+ * VIHKOTAPPELU_DATA_CACHE_TTL_MS (default 60000). */
+const DATA_CACHE_TTL_MS = Number(process.env.VIHKOTAPPELU_DATA_CACHE_TTL_MS || 60_000);
+let dataCacheAt = 0;
+
+async function refreshGameData(force) {
+  const now = Date.now();
+  if (!force && dataCacheAt && now - dataCacheAt < DATA_CACHE_TTL_MS) return;
+  const data = await fetchGameDataFromKlapi();
+  setGameData(data);
+  dataCacheAt = now;
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -90,6 +109,16 @@ function serveStatic(req, res, urlPath) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   try {
+    if (url.pathname.startsWith('/api/')) {
+      // Refresh the klapi-hosted game data when the cache has expired; on
+      // failure keep serving with the last good data.
+      try {
+        await refreshGameData(false);
+      } catch (err) {
+        console.error(`klapi game-data refresh failed, keeping cached data: ${err.message}`);
+      }
+    }
+
     if (url.pathname === '/api/state' && req.method === 'GET') {
       return sendJson(res, 200, { ok: true, state: getRoom(url.searchParams.get('room')).state(langOf(url)) });
     }
@@ -144,6 +173,20 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Vihkotappelu running at http://localhost:${PORT}`);
-});
+async function main() {
+  // The game cannot start without its unit/faction data, so a failed initial
+  // load from klapi is fatal — fix the klapi env and restart.
+  try {
+    await refreshGameData(true);
+  } catch (err) {
+    console.error(`Could not load game data from klapi at ${KLAPI_BASE_URL}: ${err.message}`);
+    console.error('Set KLAPI_BASE_URL and KLAPI_SITE_API_KEY (see lib/klapiClient.js), make sure klapi is running and its database is seeded (just reset-vihkotappelu in the klapi repo), then restart.');
+    process.exit(1);
+  }
+
+  server.listen(PORT, () => {
+    console.log(`Vihkotappelu running at http://localhost:${PORT} (game data from ${KLAPI_BASE_URL})`);
+  });
+}
+
+main();

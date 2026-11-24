@@ -3,45 +3,125 @@
 /**
  * Vihkotappelu — core turn-based battle rules.
  *
- * Pure logic module, no I/O except reading units.json and factions/*.json
- * once at load. A Game instance is one match. The server keeps one Game per
- * room, so online play later just means creating rooms keyed by room id and
- * letting two human clients claim the two sides.
+ * Pure logic module, no I/O: the unit and faction data lives in the klapi
+ * API database and is loaded once via setGameData() (the server fetches it
+ * from klapi with lib/klapiClient.js before listening; the tests seed it
+ * from test/gameData.fixture.json). A Game instance is one
+ * match. The server keeps one Game per room, so online play later just
+ * means creating rooms keyed by room id and letting two human clients
+ * claim the two sides.
  */
 
-const fs = require('fs');
-const path = require('path');
 const I18N = require('../public/i18n.js');
 
-/* Factions are pure data in factions/<faction-id>.json; their units are
- * merged into the unit definitions alongside units.json, and the two factions
- * are the two sides of a match. */
-const FACTIONS_DIR = path.join(__dirname, '..', 'factions');
+/* Game data as delivered by GET /vihkotappelu/data (klapi):
+ *   { units: [{ unitKey, name, description, hp, attack, defence, movement,
+ *               range, minRange, sprite, sortOrder,
+ *               translations: { <lang>: { name, description } } }],
+ *     factions: [{ id, name, color, sortOrder,
+ *                  translations: { <lang>: { name } }, units: [unitKey, ...] }] }
+ * setGameData() normalizes it into the module-level UNIT_DEFS / FACTIONS /
+ * SIDES below (mutated in place, so existing importers keep working). */
+const UNIT_DEFS = {};
 const FACTIONS = {};
-for (const file of fs.readdirSync(FACTIONS_DIR).filter((f) => f.endsWith('.json')).sort()) {
-  const data = JSON.parse(fs.readFileSync(path.join(FACTIONS_DIR, file), 'utf8'));
-  FACTIONS[data.faction.id] = data;
-}
-
-const UNIT_DEFS = Object.assign(
-  {},
-  JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'units.json'), 'utf8')).units
-);
-for (const id of Object.keys(FACTIONS)) Object.assign(UNIT_DEFS, FACTIONS[id].units);
+const SIDES = {};
+const SIDE_IDS = [];
+let START_SIDE = null;
+let OPENING = [];
 
 const SIZE = 32;
 
-const SIDE_IDS = Object.keys(FACTIONS);
-const SIDES = {};
-for (const id of SIDE_IDS) {
-  SIDES[id] = {
-    name: FACTIONS[id].faction.name,
-    color: FACTIONS[id].faction.color,
-    enemy: SIDE_IDS.find((other) => other !== id),
-  };
+/* Pick a localized string from a {lang: string} map, falling back to the
+ * default language, then to the raw value when it is a plain string. */
+function localized(map, lang) {
+  if (!map) return '';
+  if (typeof map === 'string') return map;
+  return map[lang] || map[I18N.DEFAULT_LANG] || '';
 }
 
-const START_SIDE = SIDE_IDS[0];
+/* Normalizes the klapi game-data payload into module state. Everything is
+ * validated and built into locals first; only a fully valid payload is
+ * committed (the exported UNIT_DEFS/FACTIONS/SIDES objects are mutated in
+ * place so existing importers keep working). */
+function setGameData(data) {
+  if (!data || !Array.isArray(data.units) || !Array.isArray(data.factions)) {
+    throw new Error('setGameData: payload must be { units: [...], factions: [...] }');
+  }
+
+  const units = {};
+  for (const u of data.units) {
+    if (!u || typeof u.unitKey !== 'string' || !u.unitKey) {
+      throw new Error('setGameData: every unit needs a non-empty unitKey');
+    }
+    const translations = u.translations || {};
+    const names = {};
+    const descriptions = {};
+    for (const lang of Object.keys(translations)) {
+      if (translations[lang] && translations[lang].name) names[lang] = translations[lang].name;
+      if (translations[lang] && translations[lang].description) descriptions[lang] = translations[lang].description;
+    }
+    if (u.name && !names[I18N.DEFAULT_LANG]) names[I18N.DEFAULT_LANG] = u.name;
+    if (u.description && !descriptions[I18N.DEFAULT_LANG]) descriptions[I18N.DEFAULT_LANG] = u.description;
+    units[u.unitKey] = {
+      name: names,
+      description: Object.keys(descriptions).length ? descriptions : undefined,
+      hp: u.hp,
+      attack: u.attack,
+      defence: u.defence,
+      movement: u.movement,
+      range: u.range,
+      minRange: u.minRange === undefined ? 1 : u.minRange,
+      sprite: u.sprite || u.unitKey,
+    };
+  }
+
+  const factions = {};
+  for (const f of data.factions) {
+    if (!f || typeof f.id !== 'string' || !f.id) {
+      throw new Error('setGameData: every faction needs a non-empty id');
+    }
+    const names = {};
+    for (const lang of Object.keys(f.translations || {})) {
+      if (f.translations[lang] && f.translations[lang].name) names[lang] = f.translations[lang].name;
+    }
+    if (f.name && !names[I18N.DEFAULT_LANG]) names[I18N.DEFAULT_LANG] = f.name;
+    factions[f.id] = { id: f.id, name: names, color: f.color || '', units: Array.isArray(f.units) ? f.units : [] };
+  }
+
+  const sideIds = Object.keys(factions).sort();
+  if (sideIds.length < 2) {
+    throw new Error('setGameData: game data must contain at least two factions (the two sides)');
+  }
+  const sides = {};
+  for (const id of sideIds) {
+    sides[id] = {
+      name: localized(factions[id].name, I18N.DEFAULT_LANG),
+      color: factions[id].color,
+      enemy: sideIds.find((other) => other !== id),
+    };
+  }
+  const startSide = sideIds[0];
+
+  // The opening armies are hardcoded (see ARMIES below), so the loaded data
+  // must actually contain the sides and unit types they refer to.
+  for (const side of [startSide, sides[startSide].enemy]) {
+    if (!Array.isArray(ARMIES[side])) throw new Error(`setGameData: no opening army defined for side "${side}"`);
+    for (const type of ARMIES[side]) {
+      if (!units[type]) throw new Error(`setGameData: opening army of "${side}" uses unknown unit "${type}"`);
+    }
+  }
+
+  for (const key of Object.keys(UNIT_DEFS)) delete UNIT_DEFS[key];
+  Object.assign(UNIT_DEFS, units);
+  for (const id of Object.keys(FACTIONS)) delete FACTIONS[id];
+  Object.assign(FACTIONS, factions);
+  for (const id of Object.keys(SIDES)) delete SIDES[id];
+  Object.assign(SIDES, sides);
+  SIDE_IDS.length = 0;
+  SIDE_IDS.push(...sideIds);
+  START_SIDE = startSide;
+  OPENING = buildOpening();
+}
 
 /* Opening armies — each side's units lined up on its own back row, centered
  * on the 32-wide board, facing each other:
@@ -72,7 +152,6 @@ function buildOpening() {
   }
   return opening;
 }
-const OPENING = buildOpening();
 
 function chebyshev(ax, ay, bx, by) {
   return Math.max(Math.abs(ax - bx), Math.abs(ay - by));
@@ -103,6 +182,9 @@ class Game {
   }
 
   reset() {
+    if (!START_SIDE || Object.keys(UNIT_DEFS).length === 0) {
+      throw new Error('Game data not loaded — call setGameData() before creating games');
+    }
     this.units = [];
     this.obstacles = [];
     this.obstacleMap = new Map();
@@ -404,20 +486,35 @@ class Game {
     }
   }
 
-  /** Serializable state with all human-readable strings localized to lang. */
+  /** Serializable state with all human-readable strings localized to lang.
+   * Display names come from the i18n dictionary (unit.<type>.name /
+   * side.<id>); when a key is missing there, the name stored in the klapi
+   * game data for that language is used as the fallback. */
   state(lang) {
     lang = I18N.normalize(lang || I18N.DEFAULT_LANG);
     const sides = {};
     for (const key of Object.keys(SIDES)) {
-      sides[key] = { ...SIDES[key], name: I18N.t(lang, 'side.' + key) };
+      const nameKey = 'side.' + key;
+      sides[key] = {
+        ...SIDES[key],
+        name: I18N.has(lang, nameKey) ? I18N.t(lang, nameKey) : localized(FACTIONS[key].name, lang),
+      };
     }
     const defs = {};
     for (const type of Object.keys(UNIT_DEFS)) {
+      const def = UNIT_DEFS[type];
+      const nameKey = 'unit.' + type + '.name';
       const descKey = 'unit.' + type + '.description';
       defs[type] = {
-        ...UNIT_DEFS[type],
-        name: I18N.t(lang, 'unit.' + type + '.name'),
-        description: I18N.has(lang, descKey) ? I18N.t(lang, descKey) : '',
+        hp: def.hp,
+        attack: def.attack,
+        defence: def.defence,
+        movement: def.movement,
+        range: def.range,
+        minRange: def.minRange,
+        sprite: def.sprite,
+        name: I18N.has(lang, nameKey) ? I18N.t(lang, nameKey) : localized(def.name, lang),
+        description: I18N.has(lang, descKey) ? I18N.t(lang, descKey) : localized(def.description, lang),
       };
     }
     return {
@@ -465,4 +562,4 @@ function resetRoom(id) {
   return g;
 }
 
-module.exports = { Game, getRoom, resetRoom, UNIT_DEFS, SIZE, SIDES, OBSTACLE_TYPES, OBSTACLE_CLEARANCE, httpError, I18N };
+module.exports = { Game, getRoom, resetRoom, setGameData, UNIT_DEFS, SIZE, SIDES, OBSTACLE_TYPES, OBSTACLE_CLEARANCE, httpError, I18N };

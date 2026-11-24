@@ -59,7 +59,7 @@
       'unit.mage.name': 'Mage',
       'unit.mage.description': "Powerful spellcaster. If a side's mage falls, that side loses the battle.",
 
-      // faction units (data in factions/*.json, merged into the unit defs)
+      // faction units (stored in the klapi game data)
       'unit.soldiers_of_falroth.name': 'Soldiers of Falroth',
       'unit.knights_of_gremloth.name': 'Knights of Gremloth',
       'unit.arbalesters.name': 'Arbalesters',
@@ -132,7 +132,7 @@
       'unit.mage.name': 'Magi',
       'unit.mage.description': 'Voimakas loitsija. Jos puolen magi kaatuu, kyseinen puoli häviää taistelun.',
 
-      // faction units (data in factions/*.json, merged into the unit defs)
+      // faction units (stored in the klapi game data)
       'unit.soldiers_of_falroth.name': 'Falrothin sotilaat',
       'unit.knights_of_gremloth.name': 'Gremlothin ritarit',
       'unit.arbalesters.name': 'Varsijousimiehet',
