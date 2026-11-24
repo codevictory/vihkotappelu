@@ -19,12 +19,19 @@ const I18N = require('../public/i18n.js');
  *               range, minRange, sprite, sortOrder,
  *               translations: { <lang>: { name, description } } }],
  *     factions: [{ id, name, color, sortOrder,
- *                  translations: { <lang>: { name } }, units: [unitKey, ...] }] }
+ *                  translations: { <lang>: { name } }, units: [unitKey, ...] }],
+ *     sprites: [{ spriteKey, width, height, sortOrder,
+ *                 pixels: [[cell, ...], ...] }] }   // optional, see below
  * setGameData() normalizes it into the module-level UNIT_DEFS / FACTIONS /
- * SIDES below (mutated in place, so existing importers keep working). */
+ * SIDES / SPRITE_DEFS below (mutated in place, so existing importers keep
+ * working). Sprite pixels are per-pixel colors: pixels[y][x] is null
+ * (transparent), '#rrggbb'/'#rrggbbaa', or 'side' (the owning side's faction
+ * color, resolved by the client). When the payload has no "sprites" field,
+ * the previously loaded SPRITE_DEFS are kept. */
 const UNIT_DEFS = {};
 const FACTIONS = {};
 const SIDES = {};
+const SPRITE_DEFS = {};
 const SIDE_IDS = [];
 let START_SIDE = null;
 let OPENING = [];
@@ -88,6 +95,47 @@ function setGameData(data) {
     factions[f.id] = { id: f.id, name: names, color: f.color || '', units: Array.isArray(f.units) ? f.units : [] };
   }
 
+  /* Sprites are optional in the payload; when present they fully replace the
+   * previous SPRITE_DEFS and every unit.sprite must reference one of them. */
+  let sprites = null;
+  if (data.sprites !== undefined) {
+    if (!Array.isArray(data.sprites)) {
+      throw new Error('setGameData: sprites must be an array');
+    }
+    sprites = {};
+    for (const s of data.sprites) {
+      if (!s || typeof s.spriteKey !== 'string' || !s.spriteKey) {
+        throw new Error('setGameData: every sprite needs a non-empty spriteKey');
+      }
+      const width = s.width === undefined ? 16 : s.width;
+      const height = s.height === undefined ? 16 : s.height;
+      if (!Number.isInteger(width) || width < 1 || width > 64
+        || !Number.isInteger(height) || height < 1 || height > 64) {
+        throw new Error(`setGameData: sprite "${s.spriteKey}" width/height must be integers in 1..64`);
+      }
+      if (!Array.isArray(s.pixels) || s.pixels.length !== height) {
+        throw new Error(`setGameData: sprite "${s.spriteKey}" pixels must have ${height} rows`);
+      }
+      const rows = s.pixels.map((row) => {
+        if (!Array.isArray(row) || row.length !== width) {
+          throw new Error(`setGameData: sprite "${s.spriteKey}" pixel rows must have ${width} cells`);
+        }
+        return row.map((cell) => {
+          if (cell === null) return null;
+          if (cell === 'side') return cell;
+          if (typeof cell === 'string' && /^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(cell)) return cell.toLowerCase();
+          throw new Error(`setGameData: sprite "${s.spriteKey}" has an invalid pixel color: ${JSON.stringify(cell)}`);
+        });
+      });
+      sprites[s.spriteKey] = { width, height, pixels: rows };
+    }
+    for (const key of Object.keys(units)) {
+      if (!sprites[units[key].sprite]) {
+        throw new Error(`setGameData: unit "${key}" references unknown sprite "${units[key].sprite}"`);
+      }
+    }
+  }
+
   const sideIds = Object.keys(factions).sort();
   if (sideIds.length < 2) {
     throw new Error('setGameData: game data must contain at least two factions (the two sides)');
@@ -117,6 +165,10 @@ function setGameData(data) {
   Object.assign(FACTIONS, factions);
   for (const id of Object.keys(SIDES)) delete SIDES[id];
   Object.assign(SIDES, sides);
+  if (sprites !== null) {
+    for (const key of Object.keys(SPRITE_DEFS)) delete SPRITE_DEFS[key];
+    Object.assign(SPRITE_DEFS, sprites);
+  }
   SIDE_IDS.length = 0;
   SIDE_IDS.push(...sideIds);
   START_SIDE = startSide;
@@ -562,4 +614,4 @@ function resetRoom(id) {
   return g;
 }
 
-module.exports = { Game, getRoom, resetRoom, setGameData, UNIT_DEFS, SIZE, SIDES, OBSTACLE_TYPES, OBSTACLE_CLEARANCE, httpError, I18N };
+module.exports = { Game, getRoom, resetRoom, setGameData, UNIT_DEFS, SPRITE_DEFS, SIZE, SIDES, OBSTACLE_TYPES, OBSTACLE_CLEARANCE, httpError, I18N };

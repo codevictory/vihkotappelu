@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Game, setGameData, UNIT_DEFS, SIZE, OBSTACLE_TYPES, OBSTACLE_CLEARANCE } = require('../src/game');
+const { Game, setGameData, UNIT_DEFS, SPRITE_DEFS, SIZE, OBSTACLE_TYPES, OBSTACLE_CLEARANCE } = require('../src/game');
 const gameDataFixture = require('./gameData.fixture.json');
 
 /* The game reads its unit/faction data from the klapi database at runtime;
@@ -327,6 +327,7 @@ test('state carries the obstacle layout', () => {
 
 test('setGameData validates the payload and leaves the previous data intact on failure', () => {
   const before = JSON.parse(JSON.stringify(UNIT_DEFS));
+  const spritesBefore = JSON.parse(JSON.stringify(SPRITE_DEFS));
   assert.throws(() => setGameData(null), /units/);
   assert.throws(() => setGameData({ units: [], factions: [] }), /two factions/);
   assert.throws(() => setGameData({ units: [{ hp: 1 }], factions: [{ id: 'a' }, { id: 'b' }] }), /unitKey/);
@@ -335,6 +336,41 @@ test('setGameData validates the payload and leaves the previous data intact on f
     /unknown unit|no opening army/,
   );
   assert.deepEqual(JSON.parse(JSON.stringify(UNIT_DEFS)), before, 'failed setGameData must not clobber UNIT_DEFS');
+  assert.deepEqual(JSON.parse(JSON.stringify(SPRITE_DEFS)), spritesBefore, 'failed setGameData must not clobber SPRITE_DEFS');
+});
+
+test('setGameData validates sprites (grid shape, pixel colors, unit.sprite references)', () => {
+  const base = () => JSON.parse(JSON.stringify(gameDataFixture));
+  const bad = (mutate, re) => {
+    const d = base();
+    mutate(d);
+    assert.throws(() => setGameData(d), re);
+  };
+  bad((d) => { d.sprites = 'nope'; }, /sprites must be an array/);
+  bad((d) => { d.sprites[0].spriteKey = ''; }, /spriteKey/);
+  bad((d) => { d.sprites[0].pixels = []; }, /16 rows/);
+  bad((d) => { d.sprites[0].pixels[0] = d.sprites[0].pixels[0].slice(0, 15); }, /16 cells/);
+  bad((d) => { d.sprites[0].pixels[0][0] = 'red'; }, /invalid pixel color/);
+  bad((d) => { d.sprites[0].pixels[0][0] = '#12345'; }, /invalid pixel color/);
+  bad((d) => { d.units[0].sprite = 'no_such_sprite'; }, /unknown sprite/);
+  // the previous SPRITE_DEFS survive all those failures
+  assert.ok(SPRITE_DEFS.soldiers_of_falroth);
+
+  // a valid new sprite loads and is normalized (lowercase hex, 'side' kept)
+  const d = base();
+  d.sprites.push({ spriteKey: 'test_dragon', width: 2, height: 1, pixels: [['#FF0000', 'side']] });
+  d.units.push({
+    unitKey: 'test_dragon', name: 'Dragon', description: '', hp: 50, attack: 15, defence: 5,
+    movement: 4, range: 2, minRange: 1, sprite: 'test_dragon', sortOrder: 99,
+  });
+  setGameData(d);
+  try {
+    assert.deepEqual(SPRITE_DEFS.test_dragon, { width: 2, height: 1, pixels: [['#ff0000', 'side']] });
+  } finally {
+    setGameData(gameDataFixture);
+  }
+  assert.ok(SPRITE_DEFS.soldiers_of_falroth, 'fixture data restored');
+  assert.equal(SPRITE_DEFS.test_dragon, undefined);
 });
 
 test('setGameData loads units and factions; state() falls back to the klapi names when an i18n key is missing', () => {
@@ -351,9 +387,11 @@ test('setGameData loads units and factions; state() falls back to the klapi name
       fi: { name: 'Lohikäärme', description: 'Syöksee tulta.' },
     },
   });
+  data.sprites.push({ spriteKey: 'test_dragon', width: 1, height: 1, pixels: [['#ff0000']] });
   setGameData(data);
   try {
     assert.equal(UNIT_DEFS.test_dragon.attack, 15);
+    assert.equal(SPRITE_DEFS.test_dragon.pixels[0][0], '#ff0000');
     const g = new Game();
     const en = g.state('en');
     assert.equal(en.defs.test_dragon.name, 'Dragon');

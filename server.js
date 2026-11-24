@@ -10,6 +10,7 @@
  * side — the API below already works per-room.
  *
  *   GET  /api/state?room=ID   -> game state JSON
+ *   GET  /api/sprites          -> sprite pixel grids (from klapi, see SPRITE_DEFS)
  *   POST /api/new    {room}          -> reset room
  *   POST /api/move   {room,id,x,y}   -> move one unit (once per unit per turn)
  *   POST /api/attack {room,id,targetId} -> attack with one unit (once per unit per turn)
@@ -20,15 +21,15 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { getRoom, resetRoom, setGameData, httpError, I18N } = require('./src/game');
+const { getRoom, resetRoom, setGameData, httpError, I18N, SPRITE_DEFS } = require('./src/game');
 const { fetchGameDataFromKlapi, KLAPI_BASE_URL } = require('./lib/klapiClient');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-/* Unit and faction data is hosted by the klapi API and is always fetched
- * from there ALL AT ONCE (one bulk GET /vihkotappelu/data call), never from
- * a local file. The bulk result is cached for this long; after that a single
+/* Unit, faction and sprite data is hosted by the klapi API and is always
+ * fetched from there ALL AT ONCE (one bulk GET /vihkotappelu/data call),
+ * never from a local file. The bulk result is cached for this long; after that a single
  * fresh bulk call is made on the next API request. If a refresh fails, the
  * last good data is kept.
  * Env: KLAPI_BASE_URL, KLAPI_SITE_API_KEY (see lib/klapiClient.js),
@@ -121,6 +122,12 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/state' && req.method === 'GET') {
       return sendJson(res, 200, { ok: true, state: getRoom(url.searchParams.get('room')).state(langOf(url)) });
+    }
+
+    /* Sprites are static per game data (not per room), so the client fetches
+     * them once per refresh instead of carrying them in every state payload. */
+    if (url.pathname === '/api/sprites' && req.method === 'GET') {
+      return sendJson(res, 200, { ok: true, sprites: SPRITE_DEFS });
     }
 
     if (url.pathname === '/api/hints' && req.method === 'GET') {

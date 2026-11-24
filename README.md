@@ -58,12 +58,12 @@ base URL in production), `KLAPI_TIMEOUT_MS`, `VIHKOTAPPELU_DATA_CACHE_TTL_MS`.
 
 ## Layout
 
-- unit/faction data — stored in the klapi database (seed: `reset-vihkotappelu.sql` in the klapi repo); the game reads it from klapi at startup. Edit via `npm run fetch-data` / `npm run sync-data`
+- unit/faction/sprite data — stored in the klapi database (seed: `reset-vihkotappelu.sql` in the klapi repo); the game reads it from klapi at startup. Edit via `npm run fetch-data` / `npm run sync-data`
 - `lib/klapiClient.js` — server-to-server klapi client (site-to-site `X-API-Key` auth, env-only key, https in production)
-- `tools/` — `fetch_game_data.js` (dump klapi game data to JSON) and `sync_to_klapi.js` (push a JSON payload back)
+- `tools/` — `fetch_game_data.js` (dump klapi game data to JSON), `sync_to_klapi.js` (push a JSON payload back)
 - `src/game.js` — rules engine (pure logic, one `Game` per room; data arrives via `setGameData()`)
 - `server.js` — zero-dependency Node HTTP server: static client + JSON API
-  (`GET /api/state`, `GET /api/hints`, `POST /api/new`, `POST /api/move`, `POST /api/attack`, `POST /api/endturn`); loads game data from klapi at boot
-- `public/` — canvas client with hand-drawn 16x16 pixel sprites
+  (`GET /api/state`, `GET /api/sprites`, `GET /api/hints`, `POST /api/new`, `POST /api/move`, `POST /api/attack`, `POST /api/endturn`); loads game data from klapi at boot
+- `public/` — canvas client; sprites are per-pixel color grids served from klapi via `/api/sprites` (klapi is the single source of truth, no bundled copy)
 - `public/i18n.js` — EN/FI string dictionary shared by browser and server (no build step)
 - `test/` — rule tests (seeded offline from `test/gameData.fixture.json`)

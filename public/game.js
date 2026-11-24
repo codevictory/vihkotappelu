@@ -52,11 +52,52 @@ for (const btn of document.querySelectorAll('.lang-btn')) {
 }
 
 /* ---- sprites ----
- * Pixel-art sprites (16x16, one char per pixel) and side palettes live in
- * sprites.js, loaded before this file: window.SPRITES / window.PALETTES. */
+ * Sprites live ONLY in the klapi database (VihkotappeluSprites, per-pixel
+ * hex colors) and arrive via GET /api/sprites as { spriteKey: { width,
+ * height, pixels } } where pixels[y][x] is null (transparent),
+ * '#rrggbb'/'#rrggbbaa', or 'side' (the owning side's faction color).
+ * The server loads them from klapi at boot, so they are always present. */
 
-const SPRITES = window.SPRITES;
-const PALETTES = window.PALETTES;
+const DB_SPRITES = {}; // spriteKey -> { width, height, pixels } from /api/sprites
+const spriteCache = new Map(); // spriteKey|side -> resolved pixels[y][x] colors
+
+function sideColor(side) {
+  return (state && state.sides[side] && state.sides[side].color) || '#ffffff';
+}
+
+/* Resolve a sprite to a concrete color grid ('side' -> the side's color). */
+function spritePixels(key, side) {
+  const cacheKey = key + '|' + (side || '');
+  if (spriteCache.has(cacheKey)) return spriteCache.get(cacheKey);
+  const db = DB_SPRITES[key];
+  const grid = db && Array.isArray(db.pixels)
+    ? db.pixels.map((row) => row.map((c) => (c === 'side' ? sideColor(side) : c)))
+    : null;
+  spriteCache.set(cacheKey, grid);
+  return grid;
+}
+
+function drawPixels(grid, px, py, scale) {
+  if (!grid) return;
+  for (let y = 0; y < grid.length; y++) {
+    const row = grid[y];
+    for (let x = 0; x < row.length; x++) {
+      const c = row[x];
+      if (!c) continue;
+      ctx.fillStyle = c;
+      ctx.fillRect(px + x * scale, py + y * scale, scale, scale);
+    }
+  }
+}
+
+async function loadSprites() {
+  try {
+    const r = await api('/api/sprites');
+    for (const k of Object.keys(DB_SPRITES)) delete DB_SPRITES[k];
+    Object.assign(DB_SPRITES, r.sprites || {});
+    spriteCache.clear();
+  } catch { /* keep the bundled fallback sprites */ }
+}
 
 /* ---- server API ---- */
 
@@ -71,6 +112,7 @@ async function api(path, body) {
 }
 
 async function refresh() {
+  await loadSprites(); // static per game data; re-fetched so server-side klapi refreshes show up
   const r = await api('/api/state');
   state = r.state;
   renderAll();
@@ -264,62 +306,31 @@ function drawRangeIndicator(sel) {
   }
 }
 
-/* Tile overlay sprites (range markers) use the side-independent overlay palette. */
+/* Tile overlay sprites (range markers) are side-independent. */
 function drawOverlay(type, tx, ty) {
-  const map = SPRITES[type];
-  if (!map) return;
-  const pal = PALETTES.overlay || {};
   const scale = Math.max(1, Math.floor((TILE - 4) / 16));
   const px = tx * TILE + (TILE - 16 * scale) / 2;
   const py = ty * TILE + (TILE - 16 * scale) / 2;
-  for (let y = 0; y < map.length; y++) {
-    const row = map[y];
-    for (let x = 0; x < row.length; x++) {
-      const ch = row[x];
-      if (ch === '.') continue;
-      ctx.fillStyle = pal[ch] || '#ffffff';
-      ctx.fillRect(px + x * scale, py + y * scale, scale, scale);
-    }
-  }
+  drawPixels(spritePixels(type), px, py, scale);
 }
 
-/* Obstacles use the side-independent terrain palette. */
+/* Obstacles are side-independent terrain sprites. */
 function drawObstacle(o) {
-  const map = SPRITES[o.type];
-  if (!map) return;
-  const pal = PALETTES.terrain || {};
   const scale = Math.max(1, Math.floor((TILE - 4) / 16));
   const px = o.x * TILE + (TILE - 16 * scale) / 2;
   const py = o.y * TILE + (TILE - 16 * scale) / 2;
-  for (let y = 0; y < map.length; y++) {
-    const row = map[y];
-    for (let x = 0; x < row.length; x++) {
-      const ch = row[x];
-      if (ch === '.') continue;
-      ctx.fillStyle = pal[ch] || '#ffffff';
-      ctx.fillRect(px + x * scale, py + y * scale, scale, scale);
-    }
-  }
+  drawPixels(spritePixels(o.type), px, py, scale);
 }
 
 function drawUnit(u) {
   const scale = Math.max(1, Math.floor((TILE - 8) / 16));
   const px = u.x * TILE + (TILE - 16 * scale) / 2;
   const py = u.y * TILE + 6; // leave the top of the tile for the hp bar
-  const map = SPRITES[u.def.sprite] || SPRITES.spearman;
-  const pal = PALETTES[u.side] || PALETTES.dalmen;
+  const grid = spritePixels(u.def.sprite, u.side) || spritePixels('soldiers_of_falroth', u.side);
   const spent = u.hasMoved && u.hasAttacked;
   ctx.save();
   if (spent) ctx.globalAlpha = 0.4;
-  for (let y = 0; y < map.length; y++) {
-    const row = map[y];
-    for (let x = 0; x < row.length; x++) {
-      const ch = row[x];
-      if (ch === '.') continue;
-      ctx.fillStyle = pal[ch] || '#ffffff';
-      ctx.fillRect(px + x * scale, py + y * scale, scale, scale);
-    }
-  }
+  drawPixels(grid, px, py, scale);
   ctx.restore();
 
   /* Moved-status highlight: green = not moved yet, red = already moved.

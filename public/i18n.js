@@ -52,13 +52,6 @@
       'side.dalmen.gen': 'Dalmen',
       'side.zhaglon.gen': 'Zhaglon',
 
-      'unit.spearman.name': 'Spearman',
-      'unit.spearman.description': 'Sturdy front-line fighter with a long spear. Hits hard up close and at reach 2.',
-      'unit.archer.name': 'Archer',
-      'unit.archer.description': 'Fragile but shoots far. Cannot hit targets on adjacent squares.',
-      'unit.mage.name': 'Mage',
-      'unit.mage.description': "Powerful spellcaster. If a side's mage falls, that side loses the battle.",
-
       // faction units (stored in the klapi game data)
       'unit.soldiers_of_falroth.name': 'Soldiers of Falroth',
       'unit.knights_of_gremloth.name': 'Knights of Gremloth',
@@ -124,13 +117,6 @@
       'side.zhaglon': 'Zhaglon',
       'side.dalmen.gen': 'Dalmenin',
       'side.zhaglon.gen': 'Zhaglonin',
-
-      'unit.spearman.name': 'Keihäsmies',
-      'unit.spearman.description': 'Tukeva etulinjan taistelija pitkällä keihäällä. Iskee kovaa lähietäisyydeltä ja kahden ruudun päästä.',
-      'unit.archer.name': 'Jousimies',
-      'unit.archer.description': 'Hauras mutta ampuu kauas. Ei voi osua viereisen ruudun kohteisiin.',
-      'unit.mage.name': 'Magi',
-      'unit.mage.description': 'Voimakas loitsija. Jos puolen magi kaatuu, kyseinen puoli häviää taistelun.',
 
       // faction units (stored in the klapi game data)
       'unit.soldiers_of_falroth.name': 'Falrothin sotilaat',

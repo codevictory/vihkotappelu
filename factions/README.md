@@ -109,13 +109,18 @@ name (the first line) and a `fi:` translation.
    - Also add the units to `test/gameData.fixture.json` so the offline tests
      see them.
 
-2. **Sprites** — one 16x16 pixel-art icon per unit, appended to the `SPRITES`
-   object in `public/sprites.js` (loaded by `index.html` before `game.js`,
-   exposed as `window.SPRITES`). Each row is a 16-char string, one character
-   per pixel, `.` = transparent. Keep icons small and simple; draw what the
-   `icon:` line describes. Usable palette characters (defined in `PALETTES`
-   in the same file): `W` wood brown, `B` brown, `T` light gray, `M` bright
-   steel, `O` yellow. (`P` is the side color — avoid it in faction icons.)
+2. **Sprites** — one 16x16 pixel-art icon per unit, stored in klapi as a
+   per-pixel color grid in the payload's `sprites` array (keyed by the unit's
+   `sprite` field). Draw the icon directly as a `pixels` grid in the
+   game-data JSON — 16 rows of 16 cells, each cell `null` (transparent), a
+   hex color (`#rrggbb`, or `#rrggbbaa` for translucency), or `"side"` (the
+   owning side's faction color; avoid it in faction icons). Workflow:
+   `npm run fetch-data -- game-data.json` → draw the grid in the JSON →
+   `npm run sync-data -- game-data.json`. Single pixels can also be tweaked
+   in SQL: `UPDATE VihkotappeluSprites SET pixels = json_set(pixels, '$[y][x]', '#ff0000') WHERE spriteKey = '...';`.
+   Keep icons small and simple; draw what the `icon:` line describes. Also
+   add the sprite to `test/gameData.fixture.json` (`sprites` array) so the
+   offline tests see it.
 
 3. **Translations in the app** — each unit's English/Finnish name is also
    added to `public/i18n.js` as `unit.<unit_key>.name` in both the `en` and
